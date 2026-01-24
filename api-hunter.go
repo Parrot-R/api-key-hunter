@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"regexp"
@@ -57,20 +58,20 @@ type APIKeyPattern struct {
 
 // Finding represents a detected API key with AI verification
 type Finding struct {
-	URL            string    `json:"url"`
-	KeyType        string    `json:"key_type"`
-	Value          string    `json:"value"`
-	MaskedValue    string    `json:"masked_value"`
-	Context        string    `json:"context"`
-	FoundAt        time.Time `json:"found_at"`
-	Severity       string    `json:"severity"`
-	
+	URL         string    `json:"url"`
+	KeyType     string    `json:"key_type"`
+	Value       string    `json:"value"`
+	MaskedValue string    `json:"masked_value"`
+	Context     string    `json:"context"`
+	FoundAt     time.Time `json:"found_at"`
+	Severity    string    `json:"severity"`
+
 	// AI Verification Results
-	AIVerified     bool      `json:"ai_verified"`
-	AIConfidence   float64   `json:"ai_confidence"`    // 0.0 to 1.0
+	AIVerified       bool    `json:"ai_verified"`
+	AIConfidence     float64 `json:"ai_confidence"`     // 0.0 to 1.0
 	AIClassification string  `json:"ai_classification"` // "real_key", "placeholder", "example", "false_positive"
-	AIReasoning    string    `json:"ai_reasoning"`
-	AIProvider     string    `json:"ai_provider"`
+	AIReasoning      string  `json:"ai_reasoning"`
+	AIProvider       string  `json:"ai_provider"`
 }
 
 // AIVerificationResult represents the AI's analysis of a potential key
@@ -84,15 +85,15 @@ type AIVerificationResult struct {
 
 // Global state
 var (
-	findings        []Finding
-	findingsMutex   sync.Mutex
-	seenKeys        = make(map[string]bool)
-	seenMutex       sync.Mutex
-	outputFile      string
-	aiConfig        AIConfig
-	aiClient        *AIClient
+	findings          []Finding
+	findingsMutex     sync.Mutex
+	seenKeys          = make(map[string]bool)
+	seenMutex         sync.Mutex
+	outputFile        string
+	aiConfig          AIConfig
+	aiClient          *AIClient
 	verificationQueue chan *Finding
-	wg              sync.WaitGroup
+	wg                sync.WaitGroup
 )
 
 // ============================================================================
@@ -169,7 +170,7 @@ func (c *AIClient) VerifyAPIKey(ctx context.Context, keyValue, keyType, surround
 func (c *AIClient) buildVerificationPrompt(keyValue, keyType, context string) string {
 	// Mask most of the key for security
 	maskedKey := maskKeyForAI(keyValue)
-	
+
 	return fmt.Sprintf(`You are a cybersecurity expert specializing in API key and secret detection. Analyze the following potential API key finding and determine if it's a real exposed API key or a false positive.
 
 ## Detected Information
@@ -230,7 +231,7 @@ func (c *AIClient) verifyWithOllama(ctx context.Context, prompt string) (*AIVeri
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	
+
 	var ollamaResp struct {
 		Response string `json:"response"`
 	}
@@ -279,7 +280,7 @@ func (c *AIClient) verifyWithOpenAI(ctx context.Context, prompt string) (*AIVeri
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	
+
 	if err := json.Unmarshal(body, &openaiResp); err != nil {
 		return nil, fmt.Errorf("failed to parse openai response: %w", err)
 	}
@@ -330,7 +331,7 @@ func (c *AIClient) verifyWithAnthropic(ctx context.Context, prompt string) (*AIV
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	
+
 	if err := json.Unmarshal(body, &anthropicResp); err != nil {
 		return nil, fmt.Errorf("failed to parse anthropic response: %w", err)
 	}
@@ -362,7 +363,7 @@ func (c *AIClient) verifyWithGemini(ctx context.Context, prompt string) (*AIVeri
 		},
 	}
 
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", 
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
 		c.config.Model, c.config.APIKey)
 
 	jsonBody, _ := json.Marshal(reqBody)
@@ -392,7 +393,7 @@ func (c *AIClient) verifyWithGemini(ctx context.Context, prompt string) (*AIVeri
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	
+
 	if err := json.Unmarshal(body, &geminiResp); err != nil {
 		return nil, fmt.Errorf("failed to parse gemini response: %w", err)
 	}
@@ -412,7 +413,7 @@ func (c *AIClient) verifyWithGemini(ctx context.Context, prompt string) (*AIVeri
 func parseAIResponse(response string) (*AIVerificationResult, error) {
 	// Extract JSON from response (handle markdown code blocks)
 	response = strings.TrimSpace(response)
-	
+
 	// Remove markdown code blocks if present
 	if strings.HasPrefix(response, "```json") {
 		response = strings.TrimPrefix(response, "```json")
@@ -453,7 +454,7 @@ func parseAIResponse(response string) (*AIVerificationResult, error) {
 // startVerificationWorkers starts background workers for AI verification
 func startVerificationWorkers(numWorkers int) {
 	verificationQueue = make(chan *Finding, 100)
-	
+
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		go verificationWorker(i)
@@ -463,14 +464,14 @@ func startVerificationWorkers(numWorkers int) {
 // verificationWorker processes findings through AI verification
 func verificationWorker(id int) {
 	defer wg.Done()
-	
+
 	for finding := range verificationQueue {
 		if aiClient == nil || aiConfig.Provider == ProviderNone {
 			continue
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), aiConfig.Timeout)
-		
+
 		result, err := aiClient.VerifyAPIKey(ctx, finding.Value, finding.KeyType, finding.Context)
 		cancel()
 
@@ -488,7 +489,7 @@ func verificationWorker(id int) {
 
 			// Log verification result
 			if result.IsRealKey && result.Confidence >= 0.7 {
-				fmt.Printf("🤖 [AI VERIFIED] %s (%.0f%% confidence) - %s\n", 
+				fmt.Printf("🤖 [AI VERIFIED] %s (%.0f%% confidence) - %s\n",
 					finding.KeyType, result.Confidence*100, result.Classification)
 			} else {
 				fmt.Printf("🤖 [AI FILTERED] %s classified as %s (%.0f%% confidence)\n",
@@ -532,17 +533,17 @@ func extractContext(content, key string, windowSize int) string {
 	if idx == -1 {
 		return ""
 	}
-	
+
 	start := idx - windowSize
 	if start < 0 {
 		start = 0
 	}
-	
+
 	end := idx + len(key) + windowSize
 	if end > len(content) {
 		end = len(content)
 	}
-	
+
 	return strings.TrimSpace(content[start:end])
 }
 
@@ -616,7 +617,7 @@ func checkForKeys(url string, content string, patterns []APIKeyPattern) {
 				findingsMutex.Lock()
 				findingPtr := &findings[findingIdx]
 				findingsMutex.Unlock()
-				
+
 				select {
 				case verificationQueue <- findingPtr:
 					fmt.Printf("   🤖 Queued for AI verification...\n")
@@ -651,12 +652,12 @@ func saveResults(filename string) error {
 
 	// Create results summary
 	results := struct {
-		ScanTime        string    `json:"scan_time"`
-		TotalFindings   int       `json:"total_findings"`
-		AIVerified      int       `json:"ai_verified_count"`
-		HighConfidence  int       `json:"high_confidence_count"`
-		AIProvider      string    `json:"ai_provider"`
-		Findings        []Finding `json:"findings"`
+		ScanTime       string    `json:"scan_time"`
+		TotalFindings  int       `json:"total_findings"`
+		AIVerified     int       `json:"ai_verified_count"`
+		HighConfidence int       `json:"high_confidence_count"`
+		AIProvider     string    `json:"ai_provider"`
+		Findings       []Finding `json:"findings"`
 	}{
 		ScanTime:      time.Now().UTC().Format(time.RFC3339),
 		TotalFindings: len(findings),
@@ -698,7 +699,7 @@ func main() {
 	parallelismFlag := flag.Int("parallel", 2, "Number of parallel requests")
 	delayFlag := flag.Int("delay", 1, "Delay between requests in seconds")
 	autoSaveIntervalFlag := flag.Int("autosave", 30, "Auto-save interval in seconds")
-	
+
 	// AI Configuration Flags
 	aiProviderFlag := flag.String("ai", "none", "AI provider: none, ollama, openai, anthropic, gemini")
 	aiModelFlag := flag.String("ai-model", "", "AI model name (e.g., llama3.2, gpt-4o-mini, claude-3-haiku-20240307)")
@@ -823,13 +824,36 @@ func main() {
 		colly.Async(true),
 	}
 
+	// Determine allowed domains
+	var domains []string
 	if *allowedDomainsFlag != "" {
-		domains := strings.Split(*allowedDomainsFlag, ",")
+		// Use explicitly provided domains
+		domains = strings.Split(*allowedDomainsFlag, ",")
 		for i := range domains {
 			domains[i] = strings.TrimSpace(domains[i])
 		}
+	} else {
+		// Automatically extract domain from target URL
+		targetURL, err := url.Parse(*urlFlag)
+		if err == nil && targetURL.Host != "" {
+			// Extract just the hostname (domain)
+			host := targetURL.Host
+			// Remove port if present
+			if idx := strings.Index(host, ":"); idx != -1 {
+				host = host[:idx]
+			}
+			domains = []string{host}
+			fmt.Printf("🔒 Auto-restricting crawl to target domain: %s\n", host)
+		}
+	}
+
+	if len(domains) > 0 {
 		collectorOptions = append(collectorOptions, colly.AllowedDomains(domains...))
-		fmt.Printf("🔒 Restricting crawl to: %s\n", strings.Join(domains, ", "))
+		if *allowedDomainsFlag == "" {
+			// Already printed above for auto-detection
+		} else {
+			fmt.Printf("🔒 Restricting crawl to: %s\n", strings.Join(domains, ", "))
+		}
 	}
 
 	c := colly.NewCollector(collectorOptions...)
@@ -898,13 +922,13 @@ func main() {
 	go func() {
 		<-sigChan
 		fmt.Println("\n\n🛑 Interrupted - saving results...")
-		
+
 		// Close verification queue and wait for workers
 		if verificationQueue != nil {
 			close(verificationQueue)
 			wg.Wait()
 		}
-		
+
 		saveResults(outputFile)
 		fmt.Printf("✅ Saved %d findings to %s\n", len(findings), outputFile)
 		os.Exit(0)
