@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-API Hunter is a single-binary Go CLI for secret-hunting / light OSINT recon. It runs in **three phases** around a `gocolly` crawl:
+Key Hunter (`key_hunter`) is a single-binary Go CLI for secret-hunting / light OSINT recon. It runs in **three phases** around a `gocolly` crawl:
 
 1. **Seed/recon phase** (optional) — before crawling, gather extra seed URLs and in-scope hosts from passive OSINT sources (Wayback Machine, OTX AlienVault, crt.sh) and the target's own robots.txt/sitemap; optionally probe a sensitive-path wordlist (`.env`, `.git/config`, config backups).
 2. **Crawl phase** — visit the target plus all seeds, following `<a>`/`<script src>`, and scan every page/script/response body against regex patterns for leaked keys (OpenAI, Anthropic, AWS, GitHub, Stripe, Slack, npm, Docker Hub, and many more). This phase also **fetches source maps** (`//# sourceMappingURL=`) and scans their embedded original source, flags **exposed `.git`/sensitive files**, and (optionally) runs **Shannon-entropy detection** for high-entropy secrets that match no known prefix. Optionally each detection is sent to an LLM (Ollama, OpenAI, Anthropic, Gemini) for a second-pass classification (`real_key`/`placeholder`/`example`/`documentation`/`false_positive`).
@@ -20,7 +20,7 @@ The program is a handful of files in `package main` at the repo root (no subpack
 
 ```bash
 # Build
-go build -o api_hunter .
+go build -o key_hunter .
 
 # Run directly without building
 go run . --url https://example.com
@@ -37,39 +37,39 @@ go mod tidy
 go mod verify
 ```
 
-There are no `_test.go` files, so `go test ./...` currently has nothing to run. If you add tests, `go test ./...` and `go test -run TestName ./...` will work normally since this is a standard `go.mod` module (`module api_hunter`, Go 1.24).
+There are no `_test.go` files, so `go test ./...` currently has nothing to run. If you add tests, `go test ./...` and `go test -run TestName ./...` will work normally since this is a standard `go.mod` module (`module key_hunter`, Go 1.24).
 
 ### Running a scan
 
 ```bash
 # Basic crawl, no AI verification
-./api_hunter --url https://example.com
+./key_hunter --url https://example.com
 
 # Restrict crawl to specific domains, increase depth
-./api_hunter --url https://example.com --domains example.com,cdn.example.com --depth 5
+./key_hunter --url https://example.com --domains example.com,cdn.example.com --depth 5
 
 # Multiple output formats
-./api_hunter --url https://example.com --formats json,csv,html,sarif --output report
+./key_hunter --url https://example.com --formats json,csv,html,sarif --output report
 
 # Only scan JS/config-like files, add jitter, rotate through proxies
-./api_hunter --url https://example.com --include-ext .js,.json,.env --random-delay 2 --proxies http://proxy1:8080,http://proxy2:8080
+./key_hunter --url https://example.com --include-ext .js,.json,.env --random-delay 2 --proxies http://proxy1:8080,http://proxy2:8080
 
 # Full secret-hunting run: OSINT seeds + entropy + source maps (always on) + live validation
-./api_hunter --url https://example.com --wayback --otx --entropy --validate --formats json,html
+./key_hunter --url https://example.com --wayback --otx --entropy --validate --formats json,html
 
 # Active recon (authorization required): probe .env/.git/config-backup paths across discovered subdomains
-./api_hunter --url https://example.com --crtsh --subdomain-scope --active-recon
+./key_hunter --url https://example.com --crtsh --subdomain-scope --active-recon
 
 # Driven entirely by a config file (CLI flags still override individual values)
-./api_hunter --config config.yaml
+./key_hunter --config config.yaml
 
 # With AI verification (Ollama, local)
-./api_hunter --url https://example.com --ai ollama --ai-model llama3.2
+./key_hunter --url https://example.com --ai ollama --ai-model llama3.2
 
 # With AI verification (cloud provider, key via flag or env var)
-./api_hunter --url https://example.com --ai openai --ai-key sk-xxx --ai-model gpt-4o-mini
-./api_hunter --url https://example.com --ai anthropic --ai-key sk-ant-xxx   # or ANTHROPIC_API_KEY env var
-./api_hunter --url https://example.com --ai gemini                          # or GOOGLE_API_KEY env var
+./key_hunter --url https://example.com --ai openai --ai-key sk-xxx --ai-model gpt-4o-mini
+./key_hunter --url https://example.com --ai anthropic --ai-key sk-ant-xxx   # or ANTHROPIC_API_KEY env var
+./key_hunter --url https://example.com --ai gemini                          # or GOOGLE_API_KEY env var
 ```
 
 Key flags: `--url` (required, unless set via `--config`), `--config`, `--output`, `--formats` (`json,csv,html,sarif`, default `json`), `--depth`, `--domains`, `--parallel`, `--delay`, `--random-delay`, `--autosave`, `--ignore-robots`, `--include-ext`, `--proxies`, `--ai`, `--ai-model`, `--ai-key`, `--ai-url` (Ollama base URL), `--ai-workers`, `--min-confidence`.
@@ -129,4 +129,4 @@ Add a `check<Provider>` method on `KeyValidator` (`validate.go`) issuing a singl
 - `--include-ext` only gates which fetched content gets passed to `checkForKeys` (via `matchesExtension`); it does not restrict crawling/link discovery. Sensitive-path probes **bypass** this filter (the user asked for those paths directly).
 - robots.txt is honored by default (`gocolly`'s own default) — `--ignore-robots` is an explicit, off-by-default opt-out for authorized engagements. `--active-recon` and `--validate` are likewise off by default and print an authorization banner; keep any future intrusive feature on the same opt-in-with-warning footing.
 - **Testing `--validate` in this sandbox**: outbound HTTPS goes through an agent proxy that injects the session's real GitHub credentials for `api.github.com`, so a *fake* GitHub token there returns HTTP 200 (false "live"). This is an environment artifact, not a code bug — validate the classify logic against a provider the proxy does not auth-inject (OpenAI/SendGrid correctly 401 a fake key).
-- Never commit real API keys/secrets into this repo, including in example output files, test fixtures, or commit messages — this is a secret-scanning tool, so sample data must use obviously-fake values (this repo has no `.gitignore` for scan output; avoid committing `api_hunter_ai_*` result files or any `--output` artifacts).
+- Never commit real API keys/secrets into this repo, including in example output files, test fixtures, or commit messages — this is a secret-scanning tool, so sample data must use obviously-fake values (this repo has no `.gitignore` for scan output; avoid committing `key_hunter_*` result files or any `--output` artifacts).

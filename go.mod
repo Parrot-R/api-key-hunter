@@ -1,4 +1,4 @@
-module api_hunter
+module key_hunter
 
 go 1.24.9
 

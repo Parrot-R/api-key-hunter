@@ -265,6 +265,34 @@ func handleSensitivePath(rawURL, path, body string, patterns []APIKeyPattern) {
 }
 
 // ============================================================================
+// BANNER
+// ============================================================================
+
+// printBanner renders the Key Hunter startup art and mission tagline.
+func printBanner() {
+	const (
+		gold  = "\033[38;5;220m"
+		amber = "\033[38;5;208m"
+		cyan  = "\033[38;5;51m"
+		dim   = "\033[38;5;245m"
+		reset = "\033[0m"
+		bold  = "\033[1m"
+	)
+	art := `
+    ██╗  ██╗███████╗██╗   ██╗   ██╗  ██╗██╗   ██╗███╗   ██╗████████╗███████╗██████╗
+    ██║ ██╔╝██╔════╝╚██╗ ██╔╝   ██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
+    █████╔╝ █████╗   ╚████╔╝    ███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
+    ██╔═██╗ ██╔══╝    ╚██╔╝     ██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
+    ██║  ██╗███████╗   ██║      ██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
+    ╚═╝  ╚═╝╚══════╝   ╚═╝      ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝`
+
+	fmt.Println(gold + bold + art + reset)
+	fmt.Println(amber + "         o═══⊐  " + reset + bold + "GUARDIAN OF SECRETS" + reset + amber + " · " + reset + bold + "KEEPER OF CONFIGS" + reset + amber + "  ⊏═══o" + reset)
+	fmt.Println(dim + "        🗝️  Hunt every leaked key · Guard every config · Keep your keys safe" + reset)
+	fmt.Println(cyan + "    " + strings.Repeat("─", 78) + reset)
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -353,7 +381,7 @@ func main() {
 	// Validate required flags
 	if finalURL == "" {
 		fmt.Println("❌ Error: --url flag (or `url:` in --config) is required")
-		fmt.Println("\n📖 Usage: api_hunter --url https://example.com [options]")
+		fmt.Println("\n📖 Usage: key_hunter --url https://example.com [options]")
 		fmt.Println("\n🤖 AI-Accelerated Options:")
 		fmt.Println("  --ai          AI provider: none, ollama, openai, anthropic, gemini")
 		fmt.Println("  --ai-model    Model name (e.g., llama3.2, gpt-4o-mini)")
@@ -362,13 +390,13 @@ func main() {
 		fmt.Println("  --ai-workers  Number of verification workers (default: 3)")
 		fmt.Println("\n📌 Examples:")
 		fmt.Println("  # Local AI with Ollama")
-		fmt.Println("  api_hunter --url https://example.com --ai ollama --ai-model llama3.2")
+		fmt.Println("  key_hunter --url https://example.com --ai ollama --ai-model llama3.2")
 		fmt.Println("")
 		fmt.Println("  # Cloud AI with OpenAI")
-		fmt.Println("  api_hunter --url https://example.com --ai openai --ai-key sk-xxx --ai-model gpt-4o-mini")
+		fmt.Println("  key_hunter --url https://example.com --ai openai --ai-key sk-xxx --ai-model gpt-4o-mini")
 		fmt.Println("")
 		fmt.Println("  # Cloud AI with Anthropic Claude")
-		fmt.Println("  api_hunter --url https://example.com --ai anthropic --ai-key sk-ant-xxx --ai-model claude-3-haiku-20240307")
+		fmt.Println("  key_hunter --url https://example.com --ai anthropic --ai-key sk-ant-xxx --ai-model claude-3-haiku-20240307")
 		fmt.Println("")
 		fmt.Println("  # Driven by a config file")
 		fmt.Println("  api_hunter --config config.yaml")
@@ -572,7 +600,7 @@ func main() {
 	outputFile = finalOutput
 	if outputFile == "" {
 		timestamp := time.Now().Format("20060102_150405")
-		outputFile = fmt.Sprintf("api_hunter_ai_%s", timestamp)
+		outputFile = fmt.Sprintf("key_hunter_%s", timestamp)
 	}
 	outputFormats = finalFormats
 
@@ -600,9 +628,7 @@ func main() {
 	}()
 
 	// Start scan
-	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("🚀 API HUNTER - AI-Accelerated API Key Scanner")
-	fmt.Println(strings.Repeat("=", 60))
+	printBanner()
 	fmt.Printf("🎯 Target: %s\n", finalURL)
 	fmt.Printf("📊 Max Depth: %d\n", finalDepth)
 	if aiConfig.Provider != ProviderNone {
@@ -610,7 +636,7 @@ func main() {
 		fmt.Printf("📈 Min Confidence: %.0f%%\n", finalMinConfidence*100)
 	}
 	fmt.Println("⏹️  Press Ctrl+C to stop and save results")
-	fmt.Println(strings.Repeat("=", 60) + "\n")
+	fmt.Println(strings.Repeat("─", 78) + "\n")
 
 	// Recon / seeding phase: gather extra seed URLs and in-scope hosts from
 	// passive OSINT sources and the target's robots/sitemap before crawling.
@@ -660,9 +686,9 @@ func main() {
 	}
 
 	// Final summary
-	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("📊 SCAN COMPLETE - RESULTS SUMMARY")
-	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println("\n" + strings.Repeat("═", 78))
+	fmt.Println("🗝️  KEY HUNTER - SCAN COMPLETE · RESULTS SUMMARY")
+	fmt.Println(strings.Repeat("═", 78))
 
 	// Count statistics
 	var realKeys, placeholders, falsePositives, liveKeys int
