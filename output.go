@@ -199,46 +199,118 @@ const htmlReportTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>API Hunter Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key Hunter — Scan Report</title>
 <style>
-	body { font-family: -apple-system, Arial, sans-serif; margin: 2rem; color: #1a1a1a; }
-	h1 { margin-bottom: 0.25rem; }
-	.meta { color: #555; margin-bottom: 1.5rem; }
-	table { border-collapse: collapse; width: 100%; }
-	th, td { border: 1px solid #ddd; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.9rem; vertical-align: top; }
-	th { background: #f4f4f4; }
-	tr.critical { background: #fdeaea; }
-	tr.high { background: #fdf3ea; }
-	tr.medium { background: #fdfbea; }
-	tr.low { background: #f5fdea; }
-	code { font-family: ui-monospace, Menlo, monospace; }
-	.live { color: #fff; background: #c0281f; font-weight: bold; padding: 0.1rem 0.4rem; border-radius: 3px; }
-	.src { color: #555; font-size: 0.8rem; }
+	:root{
+		--ink:#070b18; --panel:#0f1730; --panel2:#131d3a; --edge:rgba(255,210,87,.18);
+		--gold:#ffd257; --amber:#f2b23a; --arcane:#8fe9ff;
+		--text:#cdd8f2; --muted:#8a97b8;
+		--crit:#ff5f57; --high:#febc2e; --med:#ffe066; --low:#54e08a;
+		--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+		--serif:Georgia,"Times New Roman",serif;
+		--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+	}
+	*{box-sizing:border-box}
+	body{ margin:0; background:var(--ink); color:var(--text); font-family:var(--sans); line-height:1.5;
+		background-image:radial-gradient(60% 40% at 50% -5%, rgba(255,205,80,.10), transparent 70%); }
+	.wrap{ max-width:1200px; margin:0 auto; padding:32px 24px 56px; }
+	header{ display:flex; align-items:center; gap:18px; padding-bottom:20px; border-bottom:1px solid var(--edge); }
+	header svg{ width:64px; height:64px; flex:0 0 auto; filter:drop-shadow(0 6px 18px rgba(255,190,60,.25)); }
+	.brand h1{ margin:0; font-family:var(--serif); font-size:30px; letter-spacing:.10em; font-weight:700;
+		background:linear-gradient(180deg,#fff2c4,var(--gold) 45%,var(--amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+	.brand .sub{ font-family:var(--serif); font-style:italic; color:var(--muted); font-size:13px; letter-spacing:.02em; }
+	.chips{ display:flex; flex-wrap:wrap; gap:12px; margin:22px 0 8px; }
+	.chip{ background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--edge); border-radius:12px;
+		padding:12px 18px; min-width:120px; }
+	.chip .k{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+	.chip .v{ font-size:24px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+	.chip.live .v{ color:var(--crit); }
+	.tablecard{ margin-top:18px; border:1px solid var(--edge); border-radius:14px; overflow:hidden; background:var(--panel); }
+	.scroll{ overflow-x:auto; }
+	table{ border-collapse:collapse; width:100%; font-size:13.5px; }
+	th,td{ text-align:left; padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:top; }
+	thead th{ background:rgba(0,0,0,.35); font-family:var(--mono); font-size:11px; letter-spacing:.12em;
+		text-transform:uppercase; color:var(--muted); position:sticky; top:0; }
+	tbody tr:hover{ background:rgba(143,233,255,.04); }
+	td.url{ max-width:340px; word-break:break-all; color:var(--arcane); }
+	code{ font-family:var(--mono); color:var(--gold); }
+	.pill{ display:inline-block; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.06em;
+		text-transform:uppercase; padding:2px 9px; border-radius:999px; border:1px solid transparent; }
+	.pill.critical{ color:var(--crit); border-color:var(--crit); background:rgba(255,95,87,.12); }
+	.pill.high{ color:var(--high); border-color:var(--high); background:rgba(254,188,46,.12); }
+	.pill.medium{ color:var(--med); border-color:var(--med); background:rgba(255,224,102,.10); }
+	.pill.low{ color:var(--low); border-color:var(--low); background:rgba(84,224,138,.12); }
+	.src{ font-family:var(--mono); font-size:11px; color:var(--muted); }
+	.live{ display:inline-block; font-family:var(--mono); font-weight:700; font-size:11px; letter-spacing:.08em;
+		color:#0a0a0a; background:linear-gradient(180deg,#ff8b6b,var(--crit)); padding:2px 9px; border-radius:999px;
+		box-shadow:0 0 12px rgba(255,95,87,.5); }
+	.vdetail{ color:var(--muted); font-size:12px; }
+	.empty{ padding:40px; text-align:center; color:var(--muted); }
+	footer{ margin-top:26px; text-align:center; font-family:var(--mono); font-size:11px; letter-spacing:.2em;
+		text-transform:uppercase; color:var(--muted); opacity:.7; }
 </style>
 </head>
 <body>
-<h1>API Hunter Report</h1>
-<p class="meta">Scan time: {{.ScanTime}} &middot; Total findings: {{.TotalFindings}} &middot; Live keys: {{.LiveKeys}} &middot; AI provider: {{.AIProvider}}</p>
+<div class="wrap">
+<header>
+	<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key Hunter emblem">
+		<defs>
+			<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2c4"/><stop offset=".4" stop-color="#ffd257"/><stop offset="1" stop-color="#d98a1c"/></linearGradient>
+			<radialGradient id="b" cx="50%" cy="38%" r="75%"><stop offset="0" stop-color="#1b2748"/><stop offset="1" stop-color="#070b18"/></radialGradient>
+		</defs>
+		<circle cx="256" cy="256" r="248" fill="url(#b)"/>
+		<circle cx="256" cy="256" r="246" fill="none" stroke="url(#g)" stroke-width="12"/>
+		<path d="M256 150 C300 150 322 182 330 232 C344 300 360 356 384 402 L128 402 C152 356 168 300 182 232 C190 182 212 150 256 150 Z" fill="#223257"/>
+		<path d="M256 176 C232 176 214 200 214 234 C214 262 232 284 256 284 C280 284 298 262 298 234 C298 200 280 176 256 176 Z" fill="#060912"/>
+		<g fill="#8fe9ff"><ellipse cx="242" cy="236" rx="7" ry="9"/><ellipse cx="270" cy="236" rx="7" ry="9"/></g>
+		<g transform="rotate(38 352 300)">
+			<circle cx="352" cy="214" r="40" fill="none" stroke="url(#g)" stroke-width="16"/>
+			<rect x="345" y="252" width="14" height="150" rx="6" fill="url(#g)"/>
+			<path d="M359 372 h30 v14 h-30 z" fill="url(#g)"/><path d="M359 348 h20 v12 h-20 z" fill="url(#g)"/>
+		</g>
+	</svg>
+	<div class="brand">
+		<h1>KEY HUNTER</h1>
+		<div class="sub">Scan Report &middot; Guardian of Secrets · Keeper of Configs</div>
+	</div>
+</header>
+
+<div class="chips">
+	<div class="chip"><div class="k">Scan Time</div><div class="v" style="font-size:15px">{{.ScanTime}}</div></div>
+	<div class="chip"><div class="k">Total Findings</div><div class="v">{{.TotalFindings}}</div></div>
+	<div class="chip live"><div class="k">Live Keys</div><div class="v">{{.LiveKeys}}</div></div>
+	<div class="chip"><div class="k">AI Provider</div><div class="v" style="font-size:15px">{{.AIProvider}}</div></div>
+</div>
+
+<div class="tablecard">
+<div class="scroll">
 <table>
 <thead>
-<tr><th>Severity</th><th>Key Type</th><th>Source</th><th>URL</th><th>Masked Value</th><th>Found At</th><th>AI Classification</th><th>AI Confidence</th><th>Validation</th></tr>
+<tr><th>Severity</th><th>Key Type</th><th>Source</th><th>URL</th><th>Masked Value</th><th>Found At</th><th>AI Class</th><th>Conf.</th><th>Validation</th></tr>
 </thead>
 <tbody>
 {{range .Findings}}
-<tr class="{{.Severity}}">
-<td>{{.Severity}}</td>
+<tr>
+<td><span class="pill {{.Severity}}">{{.Severity}}</span></td>
 <td>{{.KeyType}}</td>
 <td><span class="src">{{.Source}}</span></td>
-<td>{{.URL}}</td>
+<td class="url">{{.URL}}</td>
 <td><code>{{.MaskedValue}}</code></td>
 <td>{{.FoundAt.Format "2006-01-02 15:04:05"}}</td>
 <td>{{.AIClassification}}</td>
 <td>{{if .AIVerified}}{{printf "%.0f%%" (mul .AIConfidence 100)}}{{end}}</td>
-<td>{{if .Live}}<span class="live">LIVE</span>{{else if .Validated}}{{.ValidationDetail}}{{end}}</td>
+<td>{{if .Live}}<span class="live">🔥 LIVE</span>{{else if .Validated}}<span class="vdetail">{{.ValidationDetail}}</span>{{end}}</td>
 </tr>
 {{end}}
 </tbody>
 </table>
+</div>
+{{if not .Findings}}<div class="empty">No findings — the vault held. 🔐</div>{{end}}
+</div>
+
+<footer>🗝️ Key Hunter · Hunt every leaked key · Guard every config · #BuiltWithAI</footer>
+</div>
 </body>
 </html>
 `
