@@ -26,12 +26,24 @@ type Finding struct {
 	FoundAt     time.Time `json:"found_at"`
 	Severity    string    `json:"severity"`
 
+	// Source records how this finding was discovered: "crawl", "sourcemap",
+	// "wayback", "otx", "sensitive-path", or "entropy".
+	Source string `json:"source"`
+	// Entropy is the Shannon entropy of the value, populated only for
+	// entropy-based detections (0 otherwise).
+	Entropy float64 `json:"entropy,omitempty"`
+
 	// AI Verification Results
 	AIVerified       bool    `json:"ai_verified"`
 	AIConfidence     float64 `json:"ai_confidence"`     // 0.0 to 1.0
 	AIClassification string  `json:"ai_classification"` // "real_key", "placeholder", "example", "false_positive"
 	AIReasoning      string  `json:"ai_reasoning"`
 	AIProvider       string  `json:"ai_provider"`
+
+	// Live Key Validation Results (populated only when --validate is set)
+	Validated        bool   `json:"validated"`         // a validation attempt was made and supported
+	Live             bool   `json:"live"`              // the key was confirmed active against its provider
+	ValidationDetail string `json:"validation_detail"` // human-readable outcome/reason
 }
 
 // Global findings state
@@ -72,6 +84,7 @@ type resultsSummary struct {
 	TotalFindings  int       `json:"total_findings"`
 	AIVerified     int       `json:"ai_verified_count"`
 	HighConfidence int       `json:"high_confidence_count"`
+	LiveKeys       int       `json:"live_keys_count"`
 	AIProvider     string    `json:"ai_provider"`
 	Findings       []Finding `json:"findings"`
 }
@@ -89,6 +102,9 @@ func buildSummary() resultsSummary {
 			if f.AIConfidence >= 0.7 && f.AIClassification == "real_key" {
 				results.HighConfidence++
 			}
+		}
+		if f.Live {
+			results.LiveKeys++
 		}
 	}
 	return results
@@ -151,7 +167,7 @@ func writeCSV(filename string, findingsList []Finding) error {
 	w := csv.NewWriter(file)
 	defer w.Flush()
 
-	header := []string{"url", "key_type", "severity", "masked_value", "found_at", "ai_verified", "ai_confidence", "ai_classification", "ai_reasoning"}
+	header := []string{"url", "key_type", "severity", "source", "masked_value", "found_at", "ai_verified", "ai_confidence", "ai_classification", "ai_reasoning", "validated", "live", "validation_detail"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -161,12 +177,16 @@ func writeCSV(filename string, findingsList []Finding) error {
 			f.URL,
 			f.KeyType,
 			f.Severity,
+			f.Source,
 			f.MaskedValue,
 			f.FoundAt.Format(time.RFC3339),
 			fmt.Sprintf("%t", f.AIVerified),
 			fmt.Sprintf("%.2f", f.AIConfidence),
 			f.AIClassification,
 			f.AIReasoning,
+			fmt.Sprintf("%t", f.Validated),
+			fmt.Sprintf("%t", f.Live),
+			f.ValidationDetail,
 		}
 		if err := w.Write(row); err != nil {
 			return err
@@ -192,26 +212,29 @@ const htmlReportTemplate = `<!DOCTYPE html>
 	tr.medium { background: #fdfbea; }
 	tr.low { background: #f5fdea; }
 	code { font-family: ui-monospace, Menlo, monospace; }
+	.live { color: #fff; background: #c0281f; font-weight: bold; padding: 0.1rem 0.4rem; border-radius: 3px; }
+	.src { color: #555; font-size: 0.8rem; }
 </style>
 </head>
 <body>
 <h1>API Hunter Report</h1>
-<p class="meta">Scan time: {{.ScanTime}} &middot; Total findings: {{.TotalFindings}} &middot; AI provider: {{.AIProvider}}</p>
+<p class="meta">Scan time: {{.ScanTime}} &middot; Total findings: {{.TotalFindings}} &middot; Live keys: {{.LiveKeys}} &middot; AI provider: {{.AIProvider}}</p>
 <table>
 <thead>
-<tr><th>Severity</th><th>Key Type</th><th>URL</th><th>Masked Value</th><th>Found At</th><th>AI Classification</th><th>AI Confidence</th><th>AI Reasoning</th></tr>
+<tr><th>Severity</th><th>Key Type</th><th>Source</th><th>URL</th><th>Masked Value</th><th>Found At</th><th>AI Classification</th><th>AI Confidence</th><th>Validation</th></tr>
 </thead>
 <tbody>
 {{range .Findings}}
 <tr class="{{.Severity}}">
 <td>{{.Severity}}</td>
 <td>{{.KeyType}}</td>
+<td><span class="src">{{.Source}}</span></td>
 <td>{{.URL}}</td>
 <td><code>{{.MaskedValue}}</code></td>
 <td>{{.FoundAt.Format "2006-01-02 15:04:05"}}</td>
 <td>{{.AIClassification}}</td>
 <td>{{if .AIVerified}}{{printf "%.0f%%" (mul .AIConfidence 100)}}{{end}}</td>
-<td>{{.AIReasoning}}</td>
+<td>{{if .Live}}<span class="live">LIVE</span>{{else if .Validated}}{{.ValidationDetail}}{{end}}</td>
 </tr>
 {{end}}
 </tbody>
@@ -301,9 +324,15 @@ func writeSARIF(filename string, findingsList []Finding) error {
 			message = fmt.Sprintf("Potential %s detected (masked: %s)", f.KeyType, f.MaskedValue)
 		}
 
+		level := sarifLevel(f.Severity)
+		if f.Live {
+			level = "error"
+			message = "VALIDATED LIVE: " + message
+		}
+
 		results = append(results, sarifResult{
 			RuleID:  f.KeyType,
-			Level:   sarifLevel(f.Severity),
+			Level:   level,
 			Message: sarifMessage{Text: message},
 			Locations: []sarifLocation{{
 				PhysicalLocation: sarifPhysicalLocation{

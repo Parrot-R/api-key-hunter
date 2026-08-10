@@ -29,8 +29,30 @@ type Config struct {
 	IncludeExt   []string `yaml:"include_ext"`
 	Proxies      []string `yaml:"proxies"`
 
+	// Recon / secret-hunting features
+	ActiveRecon    bool `yaml:"active_recon"`
+	SubdomainScope bool `yaml:"subdomain_scope"`
+	Validate       bool `yaml:"validate"`
+
 	AI       ConfigAI       `yaml:"ai"`
 	Patterns ConfigPatterns `yaml:"patterns"`
+	Sources  ConfigSources  `yaml:"sources"`
+	Entropy  ConfigEntropy  `yaml:"entropy"`
+}
+
+// ConfigSources toggles passive OSINT seed sources (see recon.go).
+type ConfigSources struct {
+	Wayback bool   `yaml:"wayback"`
+	OTX     bool   `yaml:"otx"`
+	OTXKey  string `yaml:"otx_api_key"`
+	CrtSh   bool   `yaml:"crtsh"`
+}
+
+// ConfigEntropy controls Shannon-entropy detection (see entropy.go).
+type ConfigEntropy struct {
+	Enabled   bool    `yaml:"enabled"`
+	MinLength int     `yaml:"min_length"`
+	Threshold float64 `yaml:"threshold"`
 }
 
 // ConfigAI mirrors the --ai-* flags.

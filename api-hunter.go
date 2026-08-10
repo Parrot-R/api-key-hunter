@@ -119,7 +119,63 @@ func matchesExtension(rawURL string, extensions []string) bool {
 // KEY DETECTION
 // ============================================================================
 
+// entropyConfig holds the resolved Shannon-entropy detection settings; it is
+// populated in main() and read by scanEntropy.
+var entropyConfig ConfigEntropy
+
+// markSeen records a (url, keyType, value) signature and reports whether it is
+// new. Returns false if the same finding was already recorded.
+func markSeen(url, keyType, value string) bool {
+	seenMutex.Lock()
+	defer seenMutex.Unlock()
+	sig := fmt.Sprintf("%s:%s:%s", url, keyType, value)
+	if seenKeys[sig] {
+		return false
+	}
+	seenKeys[sig] = true
+	return true
+}
+
+// storeFinding appends a finding, prints a detection line, and (when AI is
+// enabled) non-blockingly queues it for verification. Shared by every detector
+// (regex, source-map, entropy, sensitive-path).
+func storeFinding(finding Finding) {
+	findingsMutex.Lock()
+	findings = append(findings, finding)
+	findingIdx := len(findings) - 1
+	findingsMutex.Unlock()
+
+	fmt.Printf("\n🎯 [DETECTED] %s\n", finding.KeyType)
+	fmt.Printf("   🌐 URL: %s\n", finding.URL)
+	fmt.Printf("   🔑 Value: %s\n", finding.MaskedValue)
+	if finding.Source != "" && finding.Source != "crawl" {
+		fmt.Printf("   📍 Source: %s\n", finding.Source)
+	}
+
+	// Queue for AI verification if enabled
+	if aiConfig.Provider != ProviderNone && verificationQueue != nil {
+		findingsMutex.Lock()
+		findingPtr := &findings[findingIdx]
+		findingsMutex.Unlock()
+
+		select {
+		case verificationQueue <- findingPtr:
+			fmt.Printf("   🤖 Queued for AI verification...\n")
+		default:
+			fmt.Printf("   ⚠️  AI queue full, skipping verification\n")
+		}
+	}
+}
+
+// checkForKeys runs the named-pattern detectors over content discovered by
+// ordinary crawling.
 func checkForKeys(url string, content string, patterns []APIKeyPattern) {
+	checkForKeysWithSource(url, content, patterns, "crawl")
+}
+
+// checkForKeysWithSource is checkForKeys with an explicit discovery source
+// (e.g. "sourcemap", "sensitive-path") recorded on each finding.
+func checkForKeysWithSource(url string, content string, patterns []APIKeyPattern, source string) {
 	for _, pattern := range patterns {
 		matches := pattern.Pattern.FindAllStringSubmatch(content, -1)
 		for _, match := range matches {
@@ -132,53 +188,80 @@ func checkForKeys(url string, content string, patterns []APIKeyPattern) {
 				continue
 			}
 
-			// Deduplicate
-			seenMutex.Lock()
-			keySignature := fmt.Sprintf("%s:%s:%s", url, pattern.Name, keyValue)
-			if seenKeys[keySignature] {
-				seenMutex.Unlock()
+			if !markSeen(url, pattern.Name, keyValue) {
 				continue
 			}
-			seenKeys[keySignature] = true
-			seenMutex.Unlock()
 
-			// Extract surrounding context for AI analysis
-			context := extractContext(content, keyValue, 200)
-
-			finding := Finding{
+			storeFinding(Finding{
 				URL:         url,
 				KeyType:     pattern.Name,
 				Value:       keyValue,
 				MaskedValue: maskKey(keyValue),
-				Context:     context,
+				Context:     extractContext(content, keyValue, 200),
 				FoundAt:     time.Now().UTC(),
 				Severity:    pattern.Severity,
-			}
-
-			findingsMutex.Lock()
-			findings = append(findings, finding)
-			findingIdx := len(findings) - 1
-			findingsMutex.Unlock()
-
-			fmt.Printf("\n🎯 [DETECTED] %s\n", pattern.Name)
-			fmt.Printf("   🌐 URL: %s\n", url)
-			fmt.Printf("   🔑 Value: %s\n", maskKey(keyValue))
-
-			// Queue for AI verification if enabled
-			if aiConfig.Provider != ProviderNone && verificationQueue != nil {
-				findingsMutex.Lock()
-				findingPtr := &findings[findingIdx]
-				findingsMutex.Unlock()
-
-				select {
-				case verificationQueue <- findingPtr:
-					fmt.Printf("   🤖 Queued for AI verification...\n")
-				default:
-					fmt.Printf("   ⚠️  AI queue full, skipping verification\n")
-				}
-			}
+				Source:      source,
+			})
 		}
 	}
+}
+
+// scanEntropy flags high-entropy tokens that no named pattern covers. It is a
+// no-op unless entropy detection is enabled.
+func scanEntropy(url, content string) {
+	if !entropyConfig.Enabled {
+		return
+	}
+	for _, hit := range findHighEntropyTokens(content, entropyConfig.MinLength, entropyConfig.Threshold) {
+		if !markSeen(url, "High-Entropy String", hit.Value) {
+			continue
+		}
+		storeFinding(Finding{
+			URL:         url,
+			KeyType:     "High-Entropy String",
+			Value:       hit.Value,
+			MaskedValue: maskKey(hit.Value),
+			Context:     extractContext(content, hit.Value, 200),
+			FoundAt:     time.Now().UTC(),
+			Severity:    "low",
+			Source:      "entropy",
+			Entropy:     hit.Entropy,
+		})
+	}
+}
+
+// handleSensitivePath records exposure findings for a probed sensitive path
+// that returned content, and scans the exposed file for real secrets.
+func handleSensitivePath(rawURL, path, body string, patterns []APIKeyPattern) {
+	if strings.Contains(path, ".git/") && looksLikeGitConfig(body) {
+		if markSeen(rawURL, "Git Repository Exposure", rawURL) {
+			storeFinding(Finding{
+				URL:         rawURL,
+				KeyType:     "Git Repository Exposure",
+				Value:       rawURL,
+				MaskedValue: rawURL,
+				Context:     truncateContext(body, 200),
+				FoundAt:     time.Now().UTC(),
+				Severity:    "critical",
+				Source:      "sensitive-path",
+			})
+		}
+	} else if markSeen(rawURL, "Exposed Sensitive File", rawURL) {
+		storeFinding(Finding{
+			URL:         rawURL,
+			KeyType:     "Exposed Sensitive File",
+			Value:       rawURL,
+			MaskedValue: path,
+			Context:     truncateContext(body, 200),
+			FoundAt:     time.Now().UTC(),
+			Severity:    "high",
+			Source:      "sensitive-path",
+		})
+	}
+
+	// The exposed file itself may contain real keys.
+	checkForKeysWithSource(rawURL, body, patterns, "sensitive-path")
+	scanEntropy(rawURL, body)
 }
 
 // ============================================================================
@@ -200,6 +283,17 @@ func main() {
 	includeExtFlag := flag.String("include-ext", "", "Comma-separated file extensions to scan (e.g. .js,.json,.env) - default scans everything")
 	proxiesFlag := flag.String("proxies", "", "Comma-separated proxy URLs to rotate requests through")
 	configFlag := flag.String("config", "", "Path to a YAML config file (CLI flags override config file values)")
+
+	// Recon / secret-hunting flags
+	waybackFlag := flag.Bool("wayback", false, "Seed the crawl with historical URLs from the Wayback Machine")
+	otxFlag := flag.Bool("otx", false, "Seed the crawl with URLs/subdomains from OTX AlienVault")
+	otxKeyFlag := flag.String("otx-key", "", "OTX AlienVault API key (enables passive DNS subdomain lookup)")
+	crtshFlag := flag.Bool("crtsh", false, "Enumerate subdomains from crt.sh certificate transparency logs")
+	activeReconFlag := flag.Bool("active-recon", false, "Probe sensitive paths (.env, .git/config, ...) - requires authorization")
+	subdomainScopeFlag := flag.Bool("subdomain-scope", false, "Crawl across discovered subdomains (widens --domains scope)")
+	validateFlag := flag.Bool("validate", false, "Validate found keys against provider APIs - requires authorization")
+	entropyFlag := flag.Bool("entropy", false, "Enable Shannon-entropy detection of unrecognized high-entropy secrets")
+	entropyThresholdFlag := flag.Float64("entropy-threshold", defaultEntropyThreshold, "Minimum Shannon entropy (bits/char) for entropy detection")
 
 	// AI Configuration Flags
 	aiProviderFlag := flag.String("ai", "none", "AI provider: none, ollama, openai, anthropic, gemini")
@@ -238,6 +332,16 @@ func main() {
 	finalIgnoreRobots := resolveBool(explicitFlags["ignore-robots"], *ignoreRobotsFlag, cfg.IgnoreRobots)
 	finalIncludeExt := resolveStrings(explicitFlags["include-ext"], splitCSV(*includeExtFlag), cfg.IncludeExt)
 	finalProxies := resolveStrings(explicitFlags["proxies"], splitCSV(*proxiesFlag), cfg.Proxies)
+
+	finalWayback := resolveBool(explicitFlags["wayback"], *waybackFlag, cfg.Sources.Wayback)
+	finalOTX := resolveBool(explicitFlags["otx"], *otxFlag, cfg.Sources.OTX)
+	finalOTXKey := resolveString(explicitFlags["otx-key"], *otxKeyFlag, cfg.Sources.OTXKey)
+	finalCrtsh := resolveBool(explicitFlags["crtsh"], *crtshFlag, cfg.Sources.CrtSh)
+	finalActiveRecon := resolveBool(explicitFlags["active-recon"], *activeReconFlag, cfg.ActiveRecon)
+	finalSubdomainScope := resolveBool(explicitFlags["subdomain-scope"], *subdomainScopeFlag, cfg.SubdomainScope)
+	finalValidate := resolveBool(explicitFlags["validate"], *validateFlag, cfg.Validate)
+	finalEntropyEnabled := resolveBool(explicitFlags["entropy"], *entropyFlag, cfg.Entropy.Enabled)
+	finalEntropyThreshold := resolveFloat(explicitFlags["entropy-threshold"], *entropyThresholdFlag, cfg.Entropy.Threshold)
 
 	finalAIProvider := resolveString(explicitFlags["ai"], *aiProviderFlag, cfg.AI.Provider)
 	finalAIModel := resolveString(explicitFlags["ai-model"], *aiModelFlag, cfg.AI.Model)
@@ -336,6 +440,21 @@ func main() {
 		fmt.Printf("🤖 AI Verification enabled: %s (model: %s)\n", aiConfig.Provider, aiConfig.Model)
 	}
 
+	// Resolve entropy detection settings
+	entropyConfig = ConfigEntropy{
+		Enabled:   finalEntropyEnabled,
+		MinLength: cfg.Entropy.MinLength,
+		Threshold: finalEntropyThreshold,
+	}
+
+	// Authorization banners for the two intrusive, off-by-default features.
+	if finalActiveRecon {
+		fmt.Println("⚠️  Active recon enabled - probing sensitive paths. Ensure you have explicit authorization for this target.")
+	}
+	if finalValidate {
+		fmt.Println("⚠️  Live key validation enabled - discovered keys will be tested against their providers. Ensure you have explicit authorization.")
+	}
+
 	// Resolve active secret patterns (config file enable/disable list)
 	patterns := filterPatterns(defaultPatterns(), cfg.Patterns.Enable, cfg.Patterns.Disable)
 
@@ -392,6 +511,7 @@ func main() {
 			return
 		}
 		checkForKeys(e.Request.URL.String(), e.Text, patterns)
+		scanEntropy(e.Request.URL.String(), e.Text)
 		for _, attr := range []string{"data-api-key", "data-token", "data-secret"} {
 			if val := e.Attr(attr); val != "" {
 				checkForKeys(e.Request.URL.String(), val, patterns)
@@ -400,12 +520,36 @@ func main() {
 	})
 
 	c.OnResponse(func(r *colly.Response) {
-		if !matchesExtension(r.Request.URL.String(), finalIncludeExt) {
+		rawURL := r.Request.URL.String()
+		body := string(r.Body)
+
+		// Sensitive-path / .git exposure: explicit probes bypass the
+		// --include-ext content filter, since the user asked for them directly.
+		if path, ok := isSensitivePathURL(rawURL); ok && r.StatusCode == 200 && len(body) > 0 {
+			handleSensitivePath(rawURL, path, body, patterns)
 			return
 		}
+
+		if !matchesExtension(rawURL, finalIncludeExt) {
+			return
+		}
+
+		// A source map (often served with a generic content-type): scan its
+		// embedded original sources directly.
+		if looksLikeSourceMap(rawURL, body) {
+			scanSourceMap(rawURL, body, patterns)
+			scanEntropy(rawURL, body)
+			return
+		}
+
 		contentType := r.Headers.Get("Content-Type")
 		if strings.Contains(contentType, "javascript") || strings.Contains(contentType, "json") || strings.Contains(contentType, "text") {
-			checkForKeys(r.Request.URL.String(), string(r.Body), patterns)
+			checkForKeys(rawURL, body, patterns)
+			scanEntropy(rawURL, body)
+			// Follow any referenced source maps through the normal pipeline.
+			for _, mapURL := range extractSourceMapURLs(body, rawURL) {
+				r.Request.Visit(mapURL)
+			}
 		}
 	})
 
@@ -468,8 +612,36 @@ func main() {
 	fmt.Println("⏹️  Press Ctrl+C to stop and save results")
 	fmt.Println(strings.Repeat("=", 60) + "\n")
 
+	// Recon / seeding phase: gather extra seed URLs and in-scope hosts from
+	// passive OSINT sources and the target's robots/sitemap before crawling.
+	var recon reconResult
+	if finalWayback || finalOTX || finalCrtsh || finalActiveRecon {
+		fmt.Println("🛰️  Gathering OSINT seeds...")
+		recon = gatherSeeds(finalURL, ReconOptions{
+			Wayback:        finalWayback,
+			OTX:            finalOTX,
+			OTXKey:         finalOTXKey,
+			CrtSh:          finalCrtsh,
+			ActiveRecon:    finalActiveRecon,
+			SubdomainScope: finalSubdomainScope,
+		})
+		fmt.Printf("   Discovered %d seed URLs and %d subdomains\n\n", len(recon.SeedURLs), len(recon.Subdomains))
+
+		// Widen crawl scope to discovered subdomains only when the crawl is
+		// already domain-restricted (otherwise all domains are allowed anyway).
+		if finalSubdomainScope && len(recon.Subdomains) > 0 && len(c.AllowedDomains) > 0 {
+			c.AllowedDomains = append(c.AllowedDomains, recon.Subdomains...)
+		}
+	}
+
 	if err := c.Visit(finalURL); err != nil {
 		log.Fatalf("❌ Failed to start: %v", err)
+	}
+
+	// Feed all recon seeds into the same crawl pipeline (colly + seenKeys dedup;
+	// off-scope seeds are rejected when the crawl is domain-restricted).
+	for _, seed := range recon.SeedURLs {
+		c.Visit(seed)
 	}
 
 	c.Wait()
@@ -481,13 +653,19 @@ func main() {
 		wg.Wait()
 	}
 
+	// Live key validation pass (opt-in): confirm which found keys actually work.
+	if finalValidate {
+		fmt.Println("\n🔑 Validating discovered keys against providers...")
+		runValidation(finalAIWorkers)
+	}
+
 	// Final summary
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("📊 SCAN COMPLETE - RESULTS SUMMARY")
 	fmt.Println(strings.Repeat("=", 60))
 
 	// Count statistics
-	var realKeys, placeholders, falsePositives int
+	var realKeys, placeholders, falsePositives, liveKeys int
 	for _, f := range findings {
 		if f.AIVerified {
 			switch f.AIClassification {
@@ -499,14 +677,23 @@ func main() {
 				falsePositives++
 			}
 		}
+		if f.Live {
+			liveKeys++
+		}
 	}
 
 	fmt.Printf("\n📈 Statistics:\n")
 	fmt.Printf("   Total Detections: %d\n", len(findings))
+	if len(recon.SeedURLs) > 0 || len(recon.Subdomains) > 0 {
+		fmt.Printf("   🛰️  Recon Seeds: %d URLs, %d subdomains\n", len(recon.SeedURLs), len(recon.Subdomains))
+	}
 	if aiConfig.Provider != ProviderNone {
 		fmt.Printf("   🔴 Real Keys: %d\n", realKeys)
 		fmt.Printf("   🟡 Placeholders/Examples: %d\n", placeholders)
 		fmt.Printf("   🟢 False Positives Filtered: %d\n", falsePositives)
+	}
+	if finalValidate {
+		fmt.Printf("   🔥 Live Keys Confirmed: %d\n", liveKeys)
 	}
 
 	// Print high-confidence findings

@@ -1,6 +1,9 @@
 package main
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 // ============================================================================
 // SECRET PATTERNS
@@ -73,6 +76,23 @@ func defaultPatterns() []APIKeyPattern {
 		{"Bearer Token", regexp.MustCompile(`(?i)bearer\s+([a-zA-Z0-9\-_=]+\.[a-zA-Z0-9\-_=]+\.?[a-zA-Z0-9\-_=]*)`), "Bearer Token", "high"},
 		{"Private Key Block", regexp.MustCompile(`-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----`), "Private Key", "critical"},
 	}
+}
+
+// looksLikeGitConfig reports whether a response body is the contents of a
+// `.git/config` (or a git pack/index) served from an exposed .git directory -
+// a critical finding on its own, since it typically enables full source (and
+// often secret) recovery.
+func looksLikeGitConfig(body string) bool {
+	if strings.HasPrefix(body, "[core]") || strings.Contains(body, "[remote \"") {
+		return true
+	}
+	if strings.HasPrefix(body, "ref: refs/") { // .git/HEAD
+		return true
+	}
+	if strings.HasPrefix(body, "DIRC") { // .git/index signature
+		return true
+	}
+	return false
 }
 
 // filterPatterns applies a config-driven allow/deny list to a pattern set by
