@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Key Hunter emblem: a hooded warden holding a glowing key before a vault keyhole">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#1b2748"/>
+      <stop offset="55%" stop-color="#111a33"/>
+      <stop offset="100%" stop-color="#070b18"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe08a"/>
+      <stop offset="45%" stop-color="#f2b23a"/>
+      <stop offset="100%" stop-color="#9b6a12"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff2c4"/>
+      <stop offset="40%" stop-color="#ffd257"/>
+      <stop offset="100%" stop-color="#d98a1c"/>
+    </linearGradient>
+    <linearGradient id="cloak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a3a63"/>
+      <stop offset="100%" stop-color="#131d38"/>
+    </linearGradient>
+    <linearGradient id="cloakHi" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4a6bb0"/>
+      <stop offset="100%" stop-color="#223257"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffe9a8" stop-opacity="0.95"/>
+      <stop offset="35%" stop-color="#ffcf5c" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffcf5c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="keyGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#bff4ff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#bff4ff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Badge base -->
+  <circle cx="256" cy="256" r="248" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="246" fill="none" stroke="url(#ring)" stroke-width="10"/>
+  <circle cx="256" cy="256" r="228" fill="none" stroke="#0b1124" stroke-width="3" opacity="0.8"/>
+
+  <!-- Runic tick ring -->
+  <g stroke="url(#gold)" stroke-width="3" opacity="0.85">
+    <line id="ktick" x1="256" y1="20" x2="256" y2="38"/>
+    <use href="#ktick" transform="rotate(30 256 256)"/>
+    <use href="#ktick" transform="rotate(60 256 256)"/>
+    <use href="#ktick" transform="rotate(90 256 256)"/>
+    <use href="#ktick" transform="rotate(120 256 256)"/>
+    <use href="#ktick" transform="rotate(150 256 256)"/>
+    <use href="#ktick" transform="rotate(180 256 256)"/>
+    <use href="#ktick" transform="rotate(210 256 256)"/>
+    <use href="#ktick" transform="rotate(240 256 256)"/>
+    <use href="#ktick" transform="rotate(270 256 256)"/>
+    <use href="#ktick" transform="rotate(300 256 256)"/>
+    <use href="#ktick" transform="rotate(330 256 256)"/>
+  </g>
+
+  <!-- Vault rings + faint keyhole behind the figure -->
+  <circle cx="256" cy="176" r="150" fill="#0c1226" opacity="0.55"/>
+  <g fill="none" stroke="#33507f" stroke-width="2" opacity="0.5">
+    <circle cx="256" cy="150" r="118"/>
+    <circle cx="256" cy="150" r="96"/>
+  </g>
+  <g fill="#0a1024" opacity="0.75">
+    <circle cx="256" cy="132" r="34"/>
+    <path d="M243 150 L269 150 L279 214 L233 214 Z"/>
+  </g>
+
+  <!-- Halo behind hunter -->
+  <circle cx="256" cy="196" r="120" fill="url(#halo)"/>
+
+  <!-- ============ THE KEY HUNTER ============ -->
+  <!-- Cloak / body -->
+  <path d="M256 150
+           C300 150 322 182 330 232
+           C344 300 360 356 384 402
+           L128 402
+           C152 356 168 300 182 232
+           C190 182 212 150 256 150 Z"
+        fill="url(#cloak)"/>
+  <path d="M256 150 C300 150 322 182 330 232 C344 300 360 356 384 402 L256 402 Z"
+        fill="url(#cloakHi)" opacity="0.3"/>
+  <g stroke="#0b1226" stroke-width="3" opacity="0.5" fill="none">
+    <path d="M256 196 L256 402"/>
+    <path d="M300 240 C312 320 330 366 350 400"/>
+    <path d="M212 240 C200 320 182 366 162 400"/>
+  </g>
+
+  <!-- Hood -->
+  <path d="M256 150
+           C214 150 190 186 190 232
+           C190 250 198 262 210 270
+           C214 236 232 214 256 214
+           C280 214 298 236 302 270
+           C314 262 322 250 322 232
+           C322 186 298 150 256 150 Z"
+        fill="url(#cloakHi)" stroke="#0c1226" stroke-width="2"/>
+  <!-- Face void -->
+  <path d="M256 176
+           C232 176 214 200 214 234
+           C214 262 232 284 256 284
+           C280 284 298 262 298 234
+           C298 200 280 176 256 176 Z"
+        fill="#060912"/>
+  <!-- Glowing eyes -->
+  <g fill="#8fe9ff" filter="url(#glow)">
+    <ellipse cx="242" cy="236" rx="7" ry="9"/>
+    <ellipse cx="270" cy="236" rx="7" ry="9"/>
+  </g>
+
+  <!-- Arm crossing toward the key -->
+  <path d="M232 300 C270 296 300 320 322 356 C300 348 276 346 250 350 C238 332 232 316 232 300 Z"
+        fill="url(#cloak)" stroke="#0b1226" stroke-width="2"/>
+
+  <!-- ============ THE GLOWING KEY (held aloft) ============ -->
+  <circle cx="352" cy="300" r="96" fill="url(#keyGlow)"/>
+  <g transform="rotate(38 352 300)" filter="url(#glow)">
+    <circle cx="352" cy="214" r="40" fill="none" stroke="url(#gold)" stroke-width="16"/>
+    <circle cx="352" cy="214" r="16" fill="none" stroke="url(#gold)" stroke-width="8"/>
+    <path d="M330 178 L318 160 M374 178 L386 160" stroke="url(#gold)" stroke-width="7" stroke-linecap="round"/>
+    <rect x="345" y="252" width="14" height="150" rx="6" fill="url(#gold)"/>
+    <rect x="338" y="292" width="28" height="10" rx="3" fill="url(#gold)"/>
+    <path d="M359 372 h30 v14 h-30 z" fill="url(#gold)"/>
+    <path d="M359 348 h20 v12 h-20 z" fill="url(#gold)"/>
+    <path d="M352 402 l12 16 l-12 16 l-12 -16 z" fill="url(#gold)"/>
+  </g>
+  <!-- key sparkle -->
+  <path d="M300 250 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4 l10 -4 z" fill="#eafcff" opacity="0.9"/>
+
+  <!-- Banner ribbon with name -->
+  <path d="M96 430 h320 l-24 26 l24 26 h-320 l24 -26 z" fill="#12203f" stroke="url(#ring)" stroke-width="3"/>
+  <text x="256" y="464" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="34" font-weight="700" fill="url(#gold)" letter-spacing="6">KEY HUNTER</text>
+
+  <!-- Tagline -->
+  <text x="256" y="498" text-anchor="middle" font-family="Georgia, serif" font-size="13"
+        fill="#c9d6f2" letter-spacing="2" opacity="0.85">GUARDIAN OF SECRETS · KEEPER OF CONFIGS</text>
+</svg>
