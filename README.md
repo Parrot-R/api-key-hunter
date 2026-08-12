@@ -9,7 +9,6 @@
 **Find the leaked key before someone else does. Keep your API keys safe and your configs correct.**
 
 [![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![Built With AI](https://img.shields.io/badge/%23BuiltWithAI-🤖-8A2BE2)](#-built-with-ai)
 [![Website](https://img.shields.io/badge/Website-skymindautomation.com-1b2748?logo=googlechrome&logoColor=white)](https://skymindautomation.com)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/skymindautomation)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](../../pulls)
@@ -146,7 +145,6 @@ JSON (full detail, raw values for remediation), plus shareable **CSV**, **HTML**
 ## 👥 Authors
 
 - 🦜 **parrot-r** — [skymindautomation@gmail.com](mailto:skymindautomation@gmail.com) · [skymindautomation.com](https://skymindautomation.com)
-- 🤖 **Terry** — pair-programmed with [Terry Code](https://skymindautomation.com/Terry-code)
 
 ---
 
@@ -163,11 +161,7 @@ If Key Hunter saved you from a leaked key, consider fueling the next hunt:
 
 ---
 
-## 🤖 Built With AI
 
-<div align="center">
-
-Designed & built with AI pair-programming. &nbsp;**<img src="assets/built-with-ai.png" alt="#BuiltWithAI — Showcase sticker [coming soon]" width="100" />** 🤖💪
 
 _🗝️ Hunt every leaked key · Guard every config · Keep your keys safe 🔐_
 
