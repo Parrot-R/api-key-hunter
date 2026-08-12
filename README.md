@@ -167,7 +167,7 @@ If Key Hunter saved you from a leaked key, consider fueling the next hunt:
 
 <div align="center">
 
-Designed & built with AI pair-programming. &nbsp;**<img src="assets/built-with-ai.svg" alt="#BuiltWithAI — Showcase sticker [coming soon]" width="100" />** 🤖💪
+Designed & built with AI pair-programming. &nbsp;**<img src="assets/built-with-ai.png" alt="#BuiltWithAI — Showcase sticker [coming soon]" width="100" />** 🤖💪
 
 _🗝️ Hunt every leaked key · Guard every config · Keep your keys safe 🔐_
 
