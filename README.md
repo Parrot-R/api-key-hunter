@@ -146,7 +146,7 @@ JSON (full detail, raw values for remediation), plus shareable **CSV**, **HTML**
 ## 👥 Authors
 
 - 🦜 **parrot-r** — [skymindautomation@gmail.com](mailto:skymindautomation@gmail.com) · [skymindautomation.com](https://skymindautomation.com)
-- 🤖 **Claude** — pair-programmed with [Claude Code](https://claude.com/claude-code)
+- 🤖 **Terry** — pair-programmed with [Terry Code](https://skymindautomation.com/Terry-code)
 
 ---
 
@@ -167,7 +167,7 @@ If Key Hunter saved you from a leaked key, consider fueling the next hunt:
 
 <div align="center">
 
-Designed & built with AI pair-programming. &nbsp;**#BuiltWithAI** 🤖💪
+Designed & built with AI pair-programming. &nbsp;**<img src="assets/built-with-ai.svg" alt="#BuiltWithAI — Showcase sticker [coming soon]" width="100" />** 🤖💪
 
 _🗝️ Hunt every leaked key · Guard every config · Keep your keys safe 🔐_
 
