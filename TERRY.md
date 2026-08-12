@@ -1,6 +1,6 @@
 # TERRY.md
 
-This file provides guidance to Claude Code when working with code in this repository.
+This file provides guidance to Terry Code when working with code in this repository.
 
 ## What this is
 
