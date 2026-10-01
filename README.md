@@ -8,7 +8,7 @@
 
 **Find the leaked key before someone else does. Keep your API keys safe and your configs correct.**
 
-[![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![Website](https://img.shields.io/badge/Website-skymindautomation.com-1b2748?logo=googlechrome&logoColor=white)](https://skymindautomation.com)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/skymindautomation)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](../../pulls)
