@@ -1,0 +1,17 @@
+# Compiled binary (README builds `go build -o key_hunter .`)
+/key_hunter
+
+# Test & coverage artifacts
+*.test
+*.out
+coverage.*
+
+# Generated scan reports
+report.json
+report.csv
+report.html
+report.sarif
+
+# Editor/OS cruft
+.DS_Store
+*.swp
